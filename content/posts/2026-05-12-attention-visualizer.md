@@ -7,6 +7,10 @@ cover:
 headerImage: /images/posts/attn-viz/preview.png
 ---
 
+<div style="text-align: center; margin-bottom: 1.5rem;">
+<a href="https://matthewbonanni.github.io/attn-viz/" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1.2rem; border: 1px solid var(--border); border-radius: 6px; text-decoration: none; color: var(--primary); font-size: 0.95rem;">Attention Visualizer →</a>
+</div>
+
 [Attention Visualizer](https://matthewbonanni.github.io/attn-viz/) is an interactive tool I built for exploring the self-attention mechanism at the heart of transformer models. It renders tensors and operations as isometric 3D blocks, making it easy to see how shapes flow through each stage of attention — from the initial QKV projections through the softmax and final output projection. You can adjust architecture parameters like sequence length, number of heads, and head dimension in real time and watch the diagram update instantly. Clicking any tensor or operation opens a detail panel with a breakdown of FLOPs, memory transfer, arithmetic intensity, and roofline analysis for A100, H100, and B200 GPUs.
 
 If you’re like me and think visually, this is really helpful for understanding the sequence of operations in the major attention variants in use today: MHA, GQA, MQA, and MLA. It’s also helpful for building intuition about how techniques like PagedAttention and FlashAttention speed up inference.
