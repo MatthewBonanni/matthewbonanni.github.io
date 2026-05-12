@@ -60,3 +60,10 @@ hiddenInHomeList: true
 13. **M. Bonanni**, M. Börner, J. Hardi, M. Ihme, "Turbulent Spray Combustion with Flash Evaporation during Rocket Combustor Startup," *EUROMECH Colloquium 621: Transport and fluxes in dispersed turbulent flows*, 2021.
 
 14. **M. Bonanni**, "Ensemble Predictions of Wildfire Spread Through TPU-Compatible TensorFlow Acceleration," *Bulletin of the American Physical Society (APS Division of Fluid Dynamics)*, 2020. [Link](http://meetings.aps.org/Meeting/DFD20/Session/P04.5)
+
+<div style="text-align: center; margin-top: 2.5rem;">
+<a href="https://scholar.google.com/citations?user=Czro0isAAAAJ&hl=en" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1.2rem; border: 1px solid var(--border); border-radius: 6px; text-decoration: none; color: var(--primary); font-size: 0.95rem;">
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 512 512"><path fill="currentColor" d="M390.9 298.5c0 0 0 .1.1.1c9.2 19.4 14.4 41.1 14.4 64c0 84.3-68.3 152.6-152.6 152.6c-84.3 0-152.6-68.3-152.6-152.6s68.3-152.6 152.6-152.6c37.3 0 71.4 13.4 97.9 35.7l-41.8 40.4c-16.1-15.5-37.9-25-62.1-25c-49.5 0-89.7 40.2-89.7 89.7s40.2 89.7 89.7 89.7c44.1 0 75.9-24.7 82.6-59h-82.6v-53.6h138.2c1.5 8.7 2.3 17.8 2.3 27.2zM257.1 0L0 198.4l76.8 58.9L257.1 118l180.1 139.3l76.8-58.9z"/></svg>
+Google Scholar
+</a>
+</div>
