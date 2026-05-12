@@ -1,0 +1,174 @@
+/* Header logo sizing for posts with separate headerImage */
+.entry-cover--header-logo {
+    display: flex;
+    justify-content: center;
+    background: none;
+    text-align: center;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.entry-cover--header-logo img {
+    max-width: 300px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+/* Experience page: logo-left layout */
+.experience-entry {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    margin: 1rem 0;
+}
+
+.experience-logo {
+    flex-shrink: 0;
+    width: 80px;
+    margin: 0;
+    padding: 0;
+}
+
+.experience-logo img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.experience-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.experience-entry .experience-details h3 {
+    margin: 0 0 0.3rem 0 !important;
+    padding: 0 !important;
+}
+
+.experience-entry .experience-details > p:first-of-type {
+    margin-top: 0 !important;
+}
+
+.experience-details hr {
+    margin: 1rem 0;
+    border-color: var(--border);
+    opacity: 0.2;
+}
+
+/* Center all images and captions in blog posts */
+.post-content img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.post-content p:has(> em:only-child) {
+    text-align: center;
+}
+
+/* Resume-style spacing */
+.post-content h2 {
+    margin-top: 2rem;
+    margin-bottom: 0.25rem;
+    border-bottom: none;
+}
+
+.post-content h2 + p > strong:first-child {
+    font-size: 0.95rem;
+    color: var(--secondary);
+}
+
+.post-content > hr {
+    margin: 1.5rem 0;
+    border-color: var(--border);
+    opacity: 0.3;
+}
+
+/* Education logos in headings */
+.post-content h2 img {
+    height: 1.4em;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 0.4em;
+    display: inline;
+}
+
+/* Tighter list spacing for publications */
+.post-content ul {
+    padding-left: 1.2rem;
+}
+
+.post-content ul li {
+    margin-bottom: 0.6rem;
+    line-height: 1.5;
+}
+
+/* Coursework hierarchy */
+.coursework-year {
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    margin-top: 0.7rem;
+    margin-bottom: 0.1rem;
+    padding-bottom: 0.1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+p.coursework-term {
+    font-style: italic;
+    font-size: 0.95rem;
+    margin: 0.2rem 0 0 0.8rem !important;
+    color: var(--secondary);
+}
+
+ul.coursework-courses {
+    margin: 0 0 0.1rem 0.8rem !important;
+    padding: 0 0 0 1.2rem !important;
+    font-size: 0.95rem;
+}
+
+ul.coursework-courses li {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.3;
+}
+
+/* Profile mode tweaks */
+.main .profile {
+    min-height: auto !important;
+    flex-direction: column;
+}
+
+.profile-content {
+    max-width: 600px;
+    text-align: justify;
+    margin-top: 1.5rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.profile-content p {
+    margin-bottom: 1rem;
+}
+.profile .profile_inner h1 {
+    font-size: 2.2rem;
+}
+
+.profile .profile_inner .tagline {
+    font-size: 1.1rem;
+}
+
+.profile .profile_inner > span a {
+    text-decoration: underline;
+}
+
+/* Rectangular profile photo */
+.profile .profile_inner img {
+    border-radius: 8px;
+    width: 400px;
+    height: auto;
+    max-width: 100%;
+    object-fit: cover;
+}

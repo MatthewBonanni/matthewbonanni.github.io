@@ -1,0 +1,79 @@
+baseURL = "https://matthewbonanni.github.io/"
+languageCode = "en-us"
+title = "Matthew Bonanni"
+theme = "PaperMod"
+[pagination]
+pagerSize = 10
+
+[params]
+defaultTheme = "auto"
+showReadingTime = false
+showShareButtons = false
+showPostNavLinks = true
+showBreadCrumbs = true
+showCodeCopyButtons = true
+showToc = false
+aboutContent = "I am passionate about using computation to solve real-world problems. My PhD research focused on large eddy simulation of turbulent reacting flows with application to rocket and scramjet propulsion. In the process, I obtained substantial experience in the development of massively-parallel simulation software for high-performance computing systems and had the opportunity to collaborate with researchers from multiple NASA centers, Google, AFRL, DLR, and others. Now, I leverage that background in high-performance computing to accelerate LLM inference at Red Hat, working on vLLM, the premier open-source inference engine."
+
+[params.assets]
+favicon = "favicon.ico"
+favicon16x16 = "favicon-16x16.png"
+favicon32x32 = "favicon-32x32.png"
+apple_touch_icon = "apple-touch-icon.png"
+
+[params.homeInfoParams]
+Title = "Matthew Bonanni"
+Content = ""
+
+[[params.socialIcons]]
+name = "github"
+url = "https://github.com/MatthewBonanni"
+
+[[params.socialIcons]]
+name = "linkedin"
+url = "https://www.linkedin.com/in/matthew-bonanni"
+
+[[params.socialIcons]]
+name = "googlescholar"
+url = "https://scholar.google.com/citations?user=Czro0isAAAAJ&hl=en"
+
+[params.profileMode]
+enabled = true
+title = "Matthew Bonanni, PhD"
+subtitle = "Machine Learning Engineer — Red Hat<br>[vLLM](https://github.com/vllm-project/vllm) Maintainer"
+imageUrl = "/images/about/profile.jpeg"
+imageWidth = 400
+imageHeight = 300
+
+
+[menu]
+
+[[menu.main]]
+identifier = "experience"
+name = "Experience"
+url = "/experience/"
+weight = 10
+
+[[menu.main]]
+identifier = "education"
+name = "Education"
+url = "/education/"
+weight = 20
+
+[[menu.main]]
+identifier = "publications"
+name = "Publications"
+url = "/publications/"
+weight = 30
+
+[[menu.main]]
+identifier = "posts"
+name = "Posts"
+url = "/posts/"
+weight = 40
+
+[outputs]
+home = ["HTML", "RSS", "JSON"]
+
+[markup.goldmark.renderer]
+unsafe = true
