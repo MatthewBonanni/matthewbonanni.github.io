@@ -16,6 +16,6 @@ I wanted a departure board by my front door, so I built one. [MBTA Departure Boa
 
 If you enter a starting address, it estimates the walk to each stop with OpenStreetMap routing and shows when to leave for the next departure you can still make, e.g. "Leave in 6 min, for the 1:42 PM, 5 min walk".
 
-The design is modeled on 1970s US government graphics: Helvetica, a strict grid, thin rules, and color only for route badges. The screenshot above uses fictional demo data.
+The screenshot above uses fictional demo data.
 
 To install it on an iPad, open the link in Safari and choose Share → Add to Home Screen. The source is on [GitHub](https://github.com/MatthewBonanni/mbta-board). It isn't affiliated with the MBTA.
