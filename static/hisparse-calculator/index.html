@@ -20,6 +20,7 @@
       --host: #7656b5;
       --weights: #4b5563;
       --reserve: #a8adb5;
+      --fixed: #c2578a;
     }
 
     :root[data-theme="dark"] {
@@ -37,6 +38,7 @@
       --host: #b59cff;
       --weights: #cbd5e1;
       --reserve: #555c66;
+      --fixed: #e889b6;
     }
 
     * { box-sizing: border-box; }
@@ -275,6 +277,11 @@
     .memory-segment.indexer { background: var(--accent); }
     .memory-segment.indexer-offload { background: var(--accent); opacity: .72; }
     .memory-segment.standard { background: var(--warn); }
+    .memory-segment.fixed, .memory-swatch.fixed { background: var(--fixed); }
+    .memory-segment.admission, .memory-swatch.admission {
+      background: repeating-linear-gradient(45deg, var(--reserve) 0 3px, transparent 3px 6px);
+    }
+    .memory-key[hidden] { display: none; }
     .memory-segment.host { background: var(--host); }
     .memory-segment.weights { background: var(--weights); }
     .memory-segment.reserve { background: var(--reserve); }
@@ -402,17 +409,29 @@
   <main class="calculator">
     <header>
       <h1>HiSparse concurrency calculator</h1>
-      <p class="subtitle">Estimate ordinary GPU KV capacity, HiSparse’s fully offloaded steady state, and native indexer offloading. Results are planning estimates, not guaranteed serving limits.</p>
+      <p class="subtitle">Estimate ordinary GPU KV capacity, HiSparse’s fully offloaded steady state, and native indexer offloading for sparse-attention models. Results are planning estimates, not guaranteed serving limits.</p>
     </header>
 
     <div class="layout">
       <form class="panel controls" id="controls">
         <fieldset>
+          <legend>Model</legend>
+          <select id="model" aria-label="Model">
+            <option value="glm53" selected>GLM-5.3</option>
+            <option value="glm53flash">GLM-5.3-Flash</option>
+            <option value="dsv4pro">DeepSeek-V4-Pro</option>
+            <option value="dsv4flash">DeepSeek-V4-Flash</option>
+            <option value="dsv41flash">DeepSeek-V4.1-Flash</option>
+          </select>
+          <p class="inline-hint" id="modelNote"></p>
+        </fieldset>
+
+        <fieldset>
           <legend>GPU</legend>
           <div class="preset-row">
-            <button class="preset active" type="button" data-gpu="H200" data-memory="141">H200</button>
-            <button class="preset" type="button" data-gpu="B200" data-memory="180">B200</button>
-            <button class="preset" type="button" data-gpu="B300" data-memory="288">B300</button>
+            <button class="preset active" type="button" data-gpu="H200" data-memory="141" data-arch="sm90">H200</button>
+            <button class="preset" type="button" data-gpu="B200" data-memory="180" data-arch="sm100">B200</button>
+            <button class="preset" type="button" data-gpu="B300" data-memory="288" data-arch="sm100">B300</button>
           </div>
           <p class="gpu-capacity" id="gpuCapacity">H200 · 141 GB HBM3e per GPU</p>
           <label class="toggle" for="fp8Kv">
@@ -491,24 +510,27 @@
         </fieldset>
 
         <details class="advanced">
-          <summary>Advanced GLM-5.3 layout values</summary>
+          <summary>Advanced layout values</summary>
           <div class="slider-field">
             <label for="kvHbm">Available KV HBM / GPU override <output id="kvHbmValue"></output></label>
             <input id="kvHbm" type="range" min="0" max="131.32" step="0.1" value="17.8">
           </div>
-          <p class="inline-hint">Automatically estimated from GLM-5.3’s TP/EP-sharded weights at 92% GPU utilization. Override only to match vLLM’s reported startup value.</p>
+          <p class="inline-hint">Automatically estimated from the model’s TP/EP-sharded weights at 92% GPU utilization. Override only to match vLLM’s reported startup value.</p>
           <div class="field"><label for="maxSeqs">Max sequences / DP</label><input id="maxSeqs" type="number" min="1" value="1024"></div>
           <div class="field"><label for="baselinePoolBytes">Baseline GPU block bytes</label><input id="baselinePoolBytes" type="number" min="1" value="3052800"></div>
           <div class="field"><label for="baselineBlock">Baseline block tokens</label><input id="baselineBlock" type="number" min="1" value="64"></div>
+          <div class="field"><label for="baselineConst">Baseline fixed blocks / request</label><input id="baselineConst" type="number" min="0" value="0"></div>
+          <div class="field"><label for="baselineReserve">Baseline admission reserve blocks</label><input id="baselineReserve" type="number" min="0" value="0"></div>
           <div class="field"><label for="hisparsePoolBytes">HiSparse GPU block bytes</label><input id="hisparsePoolBytes" type="number" min="1" value="184320"></div>
+          <div class="field"><label for="gpuBlock">HiSparse indexer block tokens</label><input id="gpuBlock" type="number" min="1" value="64"></div>
+          <div class="field"><label for="otherGpu">HiSparse fixed blocks / request</label><input id="otherGpu" type="number" min="0" value="0"></div>
+          <div class="field"><label for="hisparseReserve">HiSparse admission reserve blocks</label><input id="hisparseReserve" type="number" min="0" value="0"></div>
           <div class="field"><label for="hostBlockBytes">Host block bytes</label><input id="hostBlockBytes" type="number" min="1" value="2875392"></div>
-          <div class="field"><label for="gpuBlock">GPU block tokens</label><input id="gpuBlock" type="number" min="1" value="64"></div>
           <div class="field"><label for="hostBlock">Host block tokens</label><input id="hostBlock" type="number" min="1" value="64"></div>
-          <div class="field"><label for="hotGroups">Hot/resident groups</label><input id="hotGroups" type="number" min="1" value="20"></div>
           <div class="field"><label for="residentPages">Retained pages / group</label><input id="residentPages" type="number" min="0" value="2"></div>
-          <div class="field"><label for="otherGpu">Other GPU blocks / request</label><input id="otherGpu" type="number" min="0" value="0"></div>
+          <p class="inline-hint" id="hotGroupsNote"></p>
         </details>
-        <button type="reset">Reset GLM-5.3 defaults</button>
+        <button type="reset">Reset defaults</button>
       </form>
 
       <section class="results" aria-live="polite">
@@ -570,6 +592,8 @@
                   <div class="memory-segment reserve" id="gpuMemoryReserve"></div>
                   <div class="memory-segment hot" id="gpuMemoryHot"></div>
                   <div class="memory-segment indexer" id="gpuMemoryIndexer"></div>
+                  <div class="memory-segment fixed" id="gpuMemoryFixed"></div>
+                  <div class="memory-segment admission" id="gpuMemoryAdmission"></div>
                   <div class="memory-segment standard" id="gpuMemoryStandard"></div>
                   <div class="memory-segment unused" id="gpuMemoryUnused"></div>
                 </div>
@@ -578,6 +602,8 @@
                   <span class="memory-key"><i class="memory-swatch reserve"></i>vLLM runtime + HBM headroom <strong id="gpuMemoryReserveValue">–</strong></span>
                   <span class="memory-key"><i class="memory-swatch hot"></i>Hot buffers <strong id="gpuMemoryHotValue">–</strong></span>
                   <span class="memory-key"><i class="memory-swatch indexer"></i>Indexer KV <strong id="gpuMemoryIndexerValue">–</strong></span>
+                  <span class="memory-key" data-optional><i class="memory-swatch fixed"></i>Fixed per-request state <strong id="gpuMemoryFixedValue">–</strong></span>
+                  <span class="memory-key" data-optional><i class="memory-swatch admission"></i>Admission reserve <strong id="gpuMemoryAdmissionValue">–</strong></span>
                   <span class="memory-key"><i class="memory-swatch standard"></i>Standard KV <strong id="gpuMemoryStandardValue">–</strong></span>
                   <span class="memory-key"><i class="memory-swatch"></i>Unused KV <strong id="gpuMemoryUnusedValue">–</strong></span>
                 </div>
@@ -646,11 +672,16 @@
             <summary>Model and assumptions</summary>
             <p class="assumption">
               HiSparse GPU usage is the unique indexer history plus per-request hot buffers,
-              two retained resident pages per hot group, and any additional GPU blocks entered
-              above. HiSparse host usage includes the full latent KV history. The native
+              two retained resident pages per hot group, and fixed per-request state that
+              stays on the GPU (sliding-window KV, compressor or linear-attention state).
+              Each block costs the full packed stripe, so fixed state is counted in
+              blocks. Models with small-block sliding or resident groups also hold an
+              admission reserve for the next request’s prompt and in-flight prefill chunks
+              (8,192 batched tokens, async scheduling). HiSparse host usage includes the
+              full offloaded KV history. The native
               OffloadingConnector pool caches completed indexer blocks for prefix reuse, but
-              does not remove active indexer history from HBM. GLM’s latent and indexer KV
-              are replicated across TP ranks;
+              does not remove active indexer history from HBM. The sparse-MLA latent and
+              indexer KV are replicated across TP ranks;
               therefore TP does not directly divide KV bytes per request. It can still leave
               more HBM for KV by reducing the per-GPU weight shard. With TP host sharing
               enabled, one host pool serves the whole TP group. This is a steady-state estimate;
@@ -670,9 +701,9 @@
     const ids = [
       "sequence", "dp", "tp", "maxSeqs", "kvHbm", "baselinePoolBytes",
       "baselineBlock", "hisparsePoolBytes", "hostGiB", "indexerOffloadGiB", "hostBlockBytes",
-      "gpuBlock", "hostBlock", "deviceBuffer", "hotGroups",
-      "residentPages", "otherGpu", "shareHost", "fp8Kv", "expertParallel",
-      "systemRamGiB", "memoryConcurrency"
+      "gpuBlock", "hostBlock", "deviceBuffer", "baselineConst", "baselineReserve",
+      "hisparseReserve", "residentPages", "otherGpu", "shareHost", "fp8Kv",
+      "expertParallel", "systemRamGiB", "memoryConcurrency", "model"
     ];
     const fields = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
     const output = id => document.getElementById(id);
@@ -694,23 +725,95 @@
         const safeBytes = Math.max(0, Math.min(bytes, total));
         output(id).style.width = `${100 * safeBytes / safeTotal}%`;
         output(`${id}Value`).textContent = fmtBytes(safeBytes);
+        const key = output(`${id}Value`).closest("[data-optional]");
+        if (key) key.hidden = safeBytes === 0;
         labels.push(`${label}: ${fmtBytes(safeBytes)}`);
       }
       output(barId).setAttribute("aria-label", labels.join("; "));
     }
-    let currentGpu = { name: "H200", memoryGB: 141 };
+    let currentGpu = { name: "H200", memoryGB: 141, arch: "sm90" };
     let hostPoolUsesMinimum = true;
     let memoryConcurrencyUsesMaximum = true;
-    const glmWeights = {
-      sharedGiB: 19.556,
-      routedExpertGiB: 684.167,
-      gpuMemoryUtilization: .92,
-      runtimeReserveGiB: 15,
+    const memoryBudget = { gpuMemoryUtilization: .92, runtimeReserveGiB: 15 };
+
+    const layout = (baseline, hisparse, hot, host) => ({
+      baseline: { blockBytes: baseline[0], blockTokens: baseline[1], fixedBlocks: baseline[2], reserveBlocks: baseline[3] },
+      hisparse: { blockBytes: hisparse[0], blockTokens: hisparse[1], fixedBlocks: hisparse[2], reserveBlocks: hisparse[3] },
+      hotGroups: hot.map(([count, rowsPerBlock]) => ({ count, rowsPerBlock })),
+      host: { blockBytes: host[0], blockTokens: host[1] },
+    });
+    const models = {
+      glm53: {
+        name: "GLM-5.3",
+        note: "Layout from vLLM’s HiSparse implementation.",
+        weights: { sharedGiB: 19.556, routedExpertGiB: 684.167 },
+        topk: 2048,
+        layouts: {
+          fp8: layout([3052800, 64, 0, 0], [184320, 64, 0, 0], [[20, 64]], [2875392, 64]),
+          bf16: layout([5928192, 64, 0, 0], [294912, 64, 0, 0], [[20, 64]], [5750784, 64]),
+        },
+      },
+      glm53flash: {
+        name: "GLM-5.3-Flash",
+        note: "Estimate from the layout in vllm-project/vllm#61243 (open). KDA state shards by TP, so the layout is computed for TP8 only. H200 requires BF16 KV.",
+        weights: { sharedGiB: 14.407, routedExpertGiB: 290.321 },
+        topk: 2048,
+        tp: 8,
+        layouts: {
+          "sm100-fp8": layout([7028736, 1152, 13, 0], [589824, 1536, 103, 508], [[2, 128]], [720896, 128]),
+          "sm100-bf16": layout([7569408, 640, 13, 0], [655360, 1792, 103, 762], [[3, 128]], [1441792, 128]),
+          "sm90-bf16": layout([7468032, 640, 13, 0], [655360, 1792, 103, 762], [[3, 128]], [1441792, 128]),
+        },
+      },
+      dsv4pro: {
+        name: "DeepSeek-V4-Pro",
+        note: "Estimate from the layout in vllm-project/vllm#53592 (open). FP8 KV only.",
+        weights: { sharedGiB: 26.723, routedExpertGiB: 765.598 },
+        topk: 1024,
+        layouts: {
+          fp8: layout([1435968, 256, 26, 13342], [336960, 256, 104, 53936], [[4, 64]], [1122304, 256]),
+        },
+      },
+      dsv4flash: {
+        name: "DeepSeek-V4-Flash",
+        note: "Estimate from the layout in vllm-project/vllm#53592 (open), calibrated against measured B200 runs. FP8 KV only.",
+        weights: { sharedGiB: 8.239, routedExpertGiB: 137.062 },
+        topk: 512,
+        layouts: {
+          fp8: layout([1002240, 256, 26, 13342], [224640, 256, 107, 62083], [[4, 64]], [786432, 256]),
+        },
+      },
+      dsv41flash: {
+        name: "DeepSeek-V4.1-Flash",
+        note: "Estimate from the layout in vllm-project/vllm#65905 (open), which offloads all compressed caches. The PR targets Hopper; Blackwell values apply the same policy to its larger records. Engram tables stay in host memory. FP8 KV only.",
+        weights: { sharedGiB: 9.307, routedExpertGiB: 268.945 },
+        topk: 512,
+        layouts: {
+          "sm90-fp8": layout([116928, 64, 36, 7168], [37440, 64, 203, 43000], [[3, 32], [1, 64]], [93440, 64]),
+          "sm100-fp8": layout([219648, 128, 21, 4096], [67584, 128, 203, 41976], [[3, 64], [1, 128]], [168960, 128]),
+        },
+      },
     };
-    const kvLayouts = {
-      fp8: { baseline: 3052800, hisparse: 184320, host: 2875392 },
-      bf16: { baseline: 5928192, hisparse: 294912, host: 5750784 },
-    };
+    const currentModel = () => models[fields.model.value];
+
+    function layoutFor(model, dtype) {
+      return model.layouts[`${currentGpu.arch}-${dtype}`] || model.layouts[dtype];
+    }
+
+    function currentLayout() {
+      return layoutFor(currentModel(), fields.fp8Kv.checked ? "fp8" : "bf16");
+    }
+
+    function hotBlocksPerRequest(hotRows) {
+      return currentLayout().hotGroups.reduce(
+        (blocks, group) => blocks + group.count * ceilDiv(hotRows, group.rowsPerBlock),
+        0,
+      );
+    }
+
+    function hotGroupCount() {
+      return currentLayout().hotGroups.reduce((count, group) => count + group.count, 0);
+    }
 
     function value(id, minimum = 0) {
       const parsed = Number(fields[id].value);
@@ -721,15 +824,13 @@
       const dp = value("dp", 1);
       const tp = value("tp", 1);
       const expertShards = fields.expertParallel.checked ? dp * tp : tp;
-      return (
-        glmWeights.sharedGiB / tp
-        + glmWeights.routedExpertGiB / expertShards
-      );
+      const { weights } = currentModel();
+      return weights.sharedGiB / tp + weights.routedExpertGiB / expertShards;
     }
 
     function gpuMemoryBudgetGiB() {
       const gpuMemoryGiB = currentGpu.memoryGB * 1e9 / 2 ** 30;
-      return gpuMemoryGiB * glmWeights.gpuMemoryUtilization;
+      return gpuMemoryGiB * memoryBudget.gpuMemoryUtilization;
     }
 
     function estimateAvailableKvHbm() {
@@ -737,7 +838,7 @@
         0,
         gpuMemoryBudgetGiB()
           - estimateModelWeightGiB()
-          - glmWeights.runtimeReserveGiB,
+          - memoryBudget.runtimeReserveGiB,
       );
     }
 
@@ -749,10 +850,42 @@
     }
 
     function updateKvLayout() {
-      const layout = fields.fp8Kv.checked ? kvLayouts.fp8 : kvLayouts.bf16;
-      fields.baselinePoolBytes.value = layout.baseline;
-      fields.hisparsePoolBytes.value = layout.hisparse;
-      fields.hostBlockBytes.value = layout.host;
+      const model = currentModel();
+      const fp8Available = Boolean(layoutFor(model, "fp8"));
+      const bf16Available = Boolean(layoutFor(model, "bf16"));
+      if (!fp8Available) fields.fp8Kv.checked = false;
+      if (!bf16Available) fields.fp8Kv.checked = true;
+      fields.fp8Kv.disabled = !(fp8Available && bf16Available);
+
+      const kv = currentLayout();
+      fields.baselinePoolBytes.value = kv.baseline.blockBytes;
+      fields.baselineBlock.value = kv.baseline.blockTokens;
+      fields.baselineConst.value = kv.baseline.fixedBlocks;
+      fields.baselineReserve.value = kv.baseline.reserveBlocks;
+      fields.hisparsePoolBytes.value = kv.hisparse.blockBytes;
+      fields.gpuBlock.value = kv.hisparse.blockTokens;
+      fields.otherGpu.value = kv.hisparse.fixedBlocks;
+      fields.hisparseReserve.value = kv.hisparse.reserveBlocks;
+      fields.hostBlockBytes.value = kv.host.blockBytes;
+      fields.hostBlock.value = kv.host.blockTokens;
+      output("hotGroupsNote").textContent = (
+        `Hot/resident groups: ${kv.hotGroups.map(
+          group => `${group.count} × ${group.rowsPerBlock} rows/block`,
+        ).join(" + ")}. Top-K ${fmt(model.topk)}.`
+      );
+    }
+
+    function applyModel() {
+      const model = currentModel();
+      output("modelNote").textContent = model.note;
+      fields.deviceBuffer.min = model.topk;
+      fields.deviceBuffer.max = 4 * model.topk;
+      fields.deviceBuffer.step = model.topk / 32;
+      fields.deviceBuffer.value = 2 * model.topk;
+      fields.tp.disabled = Boolean(model.tp);
+      if (model.tp) fields.tp.value = model.tp;
+      updateKvLayout();
+      updateEstimatedKvHbm();
     }
 
     function capacityAtSequence(sequence, effectiveHostGiB = Infinity) {
@@ -762,10 +895,12 @@
       const baselinePool = Math.floor(
         availableKvHbm / value("baselinePoolBytes", 1)
       );
-      const baselinePerRequest = ceilDiv(sequence, baselineBlock);
+      const baselinePerRequest = ceilDiv(sequence, baselineBlock) + value("baselineConst");
       const baselineLimit = Math.min(
         maxSeqs,
-        Math.max(0, Math.floor(baselinePool / baselinePerRequest)),
+        Math.max(0, Math.floor(
+          (baselinePool - value("baselineReserve")) / baselinePerRequest
+        )),
       );
 
       const gpuBlock = value("gpuBlock", 1);
@@ -774,13 +909,12 @@
         availableKvHbm / value("hisparsePoolBytes", 1)
       );
       const indexerPerRequest = ceilDiv(sequence, gpuBlock);
-      const hot = value("hotGroups", 1) * ceilDiv(
-        value("deviceBuffer", 1),
-        gpuBlock,
-      );
-      const resident = value("hotGroups", 1) * value("residentPages");
+      const hot = hotBlocksPerRequest(value("deviceBuffer", 1));
+      const resident = hotGroupCount() * value("residentPages");
       const hiGpuPerReq = indexerPerRequest + hot + resident + value("otherGpu");
-      const offloadedGpuLimit = Math.max(0, Math.floor(gpuPool / hiGpuPerReq));
+      const offloadedGpuLimit = Math.max(0, Math.floor(
+        (gpuPool - value("hisparseReserve")) / hiGpuPerReq
+      ));
 
       const hostPerRequest = ceilDiv(sequence, hostBlock);
       const hostPool = Math.floor(
@@ -1100,25 +1234,32 @@
         gpuMemoryTotal - gpuMemoryWeights - availableKvMemory,
       );
       const indexerBlocks = memoryConcurrency * indexerPerRequest;
-      const fullStandardBlocksPerRequest = ceilDiv(
+      const fixedBlocks = memoryConcurrency * value("otherGpu");
+      const admissionBlocks = Math.min(gpuPool, value("hisparseReserve"));
+      const usablePool = gpuPool - admissionBlocks;
+      const fullStandardBlocks = memoryConcurrency * ceilDiv(
         hostPerRequest * hostBlockBytes,
         hisparsePoolBytes,
-      ) + value("otherGpu");
-      const fullStandardBlocks = memoryConcurrency * fullStandardBlocksPerRequest;
-      const fullResidencyFits = indexerBlocks + fullStandardBlocks <= gpuPool;
-      const hotBlocks = fullResidencyFits ? 0 : memoryConcurrency * hot;
+      );
+      const fullResidencyFits = (
+        indexerBlocks + fixedBlocks + fullStandardBlocks <= usablePool
+      );
+      const hotBlocks = fullResidencyFits ? 0 : memoryConcurrency * (hot + resident);
       const standardBlocks = fullResidencyFits
         ? fullStandardBlocks
         : Math.max(0, Math.min(
           fullStandardBlocks,
-          gpuPool - indexerBlocks - hotBlocks,
+          usablePool - indexerBlocks - fixedBlocks - hotBlocks,
         ));
       const gpuMemoryHot = hotBlocks * hisparsePoolBytes * tp;
       const gpuMemoryIndexer = indexerBlocks * hisparsePoolBytes * tp;
+      const gpuMemoryFixed = fixedBlocks * hisparsePoolBytes * tp;
+      const gpuMemoryAdmission = admissionBlocks * hisparsePoolBytes * tp;
       const gpuMemoryStandard = standardBlocks * hisparsePoolBytes * tp;
       const gpuMemoryUnused = Math.max(
         0,
-        availableKvMemory - gpuMemoryHot - gpuMemoryIndexer - gpuMemoryStandard,
+        availableKvMemory - gpuMemoryHot - gpuMemoryIndexer - gpuMemoryFixed
+          - gpuMemoryAdmission - gpuMemoryStandard,
       );
       const indexerOffloadBytesPerDp = effectiveIndexerOffloadGiB / dp * 2 ** 30;
       const cpuMemoryTotal = (
@@ -1143,6 +1284,8 @@
         { id: "gpuMemoryReserve", label: "vLLM runtime and HBM headroom", bytes: gpuMemoryReserve },
         { id: "gpuMemoryHot", label: "Hot buffers", bytes: gpuMemoryHot },
         { id: "gpuMemoryIndexer", label: "Indexer KV", bytes: gpuMemoryIndexer },
+        { id: "gpuMemoryFixed", label: "Fixed per-request state", bytes: gpuMemoryFixed },
+        { id: "gpuMemoryAdmission", label: "Admission reserve", bytes: gpuMemoryAdmission },
         { id: "gpuMemoryStandard", label: "Standard KV", bytes: gpuMemoryStandard },
         { id: "gpuMemoryUnused", label: "Unused KV", bytes: gpuMemoryUnused },
       ]);
@@ -1187,7 +1330,7 @@
         : "Off";
       output("systemRamGiBValue").textContent = fmtHost(systemRamGiB);
       output("deviceBufferValue").textContent = fmt(value("deviceBuffer", 1));
-      const requiredGiB = estimateModelWeightGiB() + glmWeights.runtimeReserveGiB;
+      const requiredGiB = estimateModelWeightGiB() + memoryBudget.runtimeReserveGiB;
       const modelFits = requiredGiB <= gpuMemoryBudgetGiB();
       output("fitWarning").hidden = modelFits;
       output("fitWarning").textContent = modelFits
@@ -1221,10 +1364,12 @@
     function selectGpu(button) {
       currentGpu = {
         name: button.dataset.gpu,
-        memoryGB: Number(button.dataset.memory)
+        memoryGB: Number(button.dataset.memory),
+        arch: button.dataset.arch,
       };
       const memoryGiB = currentGpu.memoryGB * 1e9 / 2 ** 30;
       fields.kvHbm.max = memoryGiB.toFixed(2);
+      updateKvLayout();
       updateEstimatedKvHbm();
       document.querySelectorAll(".preset").forEach(candidate => {
         candidate.classList.toggle("active", candidate === button);
@@ -1252,17 +1397,21 @@
         updateEstimatedKvHbm();
       }
       if (event.target === fields.fp8Kv) updateKvLayout();
+      if (event.target === fields.model) {
+        hostPoolUsesMinimum = true;
+        memoryConcurrencyUsesMaximum = true;
+        applyModel();
+      }
       calculate();
     });
-    form.addEventListener("reset", () => requestAnimationFrame(() => {
+    form.addEventListener("reset", () => setTimeout(() => {
       hostPoolUsesMinimum = true;
       memoryConcurrencyUsesMaximum = true;
+      currentGpu.arch = "sm90";
+      applyModel();
       selectGpu(document.querySelector('[data-gpu="H200"]'));
-      updateKvLayout();
-      calculate();
     }));
-    updateEstimatedKvHbm();
-    updateKvLayout();
+    applyModel();
     calculate();
 
     function resizeEmbeddingFrame() {
