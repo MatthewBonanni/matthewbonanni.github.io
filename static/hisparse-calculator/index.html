@@ -165,7 +165,6 @@
       font-size: 12px;
     }
     .fit-warning[hidden] { display: none; }
-    #capNote { margin-top: 10px; }
     .advanced { margin: 6px 0 10px; }
     .advanced summary { color: var(--accent); font-size: 12px; font-weight: 700; }
     .advanced .field:first-of-type { margin-top: 14px; }
@@ -544,7 +543,6 @@
             <input id="kvHbm" type="range" min="0" max="131.32" step="0.1" value="17.8">
           </div>
           <p class="inline-hint">Automatically estimated from the model’s TP/EP-sharded weights at 92% GPU utilization. Override only to match vLLM’s reported startup value.</p>
-          <div class="field"><label for="maxSeqs">Max sequences / DP</label><input id="maxSeqs" type="number" min="1" value="1024"></div>
           <div class="field"><label for="baselinePoolBytes">Baseline GPU block bytes</label><input id="baselinePoolBytes" type="number" min="1" value="3052800"></div>
           <div class="field"><label for="baselineBlock">Baseline block tokens</label><input id="baselineBlock" type="number" min="1" value="64"></div>
           <div class="field"><label for="baselineConst">Baseline fixed blocks / request</label><input id="baselineConst" type="number" min="0" value="0"></div>
@@ -581,7 +579,6 @@
             <strong>HiSparse enables this sequence length.</strong>
             <span id="enablementDetail"></span>
           </div>
-          <p class="fit-warning" id="capNote" hidden></p>
           <div class="summary-meta">
             <span>Topology: <strong id="gpuTopology">–</strong></span>
             <span>Model weights / GPU: <strong id="modelWeight">–</strong></span>
@@ -745,7 +742,7 @@
   <script>
     const form = document.querySelector("#controls");
     const ids = [
-      "sequence", "dp", "tp", "maxSeqs", "kvHbm", "baselinePoolBytes",
+      "sequence", "dp", "tp", "kvHbm", "baselinePoolBytes",
       "baselineBlock", "hisparsePoolBytes", "hostGiB", "indexerOffloadGiB", "hostBlockBytes",
       "gpuBlock", "hostBlock", "deviceBuffer", "baselineConst", "baselineReserve",
       "hisparseReserve", "residentPages", "otherGpu", "shareHost", "fp8Kv",
@@ -1097,19 +1094,15 @@
     }
 
     function capacityAtSequence(sequence, effectiveHostGiB = Infinity) {
-      const maxSeqs = value("maxSeqs", 1);
       const availableKvHbm = value("kvHbm") * 2 ** 30;
       const baselineBlock = value("baselineBlock", 1);
       const baselinePool = Math.floor(
         availableKvHbm / value("baselinePoolBytes", 1)
       );
       const baselinePerRequest = ceilDiv(sequence, baselineBlock) + value("baselineConst");
-      const baselineLimit = Math.min(
-        maxSeqs,
-        Math.max(0, Math.floor(
-          (baselinePool - value("baselineReserve")) / baselinePerRequest
-        )),
-      );
+      const baselineLimit = Math.max(0, Math.floor(
+        (baselinePool - value("baselineReserve")) / baselinePerRequest
+      ));
 
       const gpuBlock = value("gpuBlock", 1);
       const hostBlock = value("hostBlock", 1);
@@ -1129,12 +1122,11 @@
         effectiveHostGiB * 2 ** 30 / value("hostBlockBytes", 1)
       );
       const hiHostLimit = Math.max(0, Math.floor(hostPool / hostPerRequest));
-      const offloadedLimit = Math.min(maxSeqs, offloadedGpuLimit, hiHostLimit);
+      const offloadedLimit = Math.min(offloadedGpuLimit, hiHostLimit);
       const hiGpuLimit = Math.max(baselineLimit, offloadedGpuLimit);
       const hiLimit = Math.max(baselineLimit, offloadedLimit);
-      const nonLimitingOffloadedLimit = Math.min(maxSeqs, offloadedGpuLimit);
-      const nonLimitingHostBytes = nonLimitingOffloadedLimit > baselineLimit
-        ? nonLimitingOffloadedLimit * hostPerRequest * value("hostBlockBytes", 1)
+      const nonLimitingHostBytes = offloadedGpuLimit > baselineLimit
+        ? offloadedGpuLimit * hostPerRequest * value("hostBlockBytes", 1)
         : 0;
 
       return {
@@ -1347,7 +1339,6 @@
       const sequence = value("sequence", 1);
       const dp = value("dp", 1);
       const tp = value("tp", 1);
-      const maxSeqs = value("maxSeqs", 1);
       const hostPoolCopiesPerDp = fields.shareHost.checked ? 1 : tp;
       const hostPoolCopies = dp * hostPoolCopiesPerDp;
       const unconstrained = capacityAtSequence(sequence);
@@ -1519,15 +1510,15 @@
       output("hiHostLimit").textContent = fmt(hiHostLimit);
       output("baseFinal").textContent = `${fmt(baselineLimit)} / DP`;
       output("hiFinal").textContent = `${fmt(hiLimit)} / DP`;
-      const offloadedLimit = Math.min(maxSeqs, offloadedGpuLimit, hiHostLimit);
+      const offloadedLimit = Math.min(offloadedGpuLimit, hiHostLimit);
       const fullResidencySelected = baselineLimit >= offloadedLimit;
       output("hiGpuLimit").classList.toggle(
         "limiter",
-        fullResidencySelected || (offloadedGpuLimit <= hiHostLimit && offloadedGpuLimit <= maxSeqs),
+        fullResidencySelected || offloadedGpuLimit <= hiHostLimit,
       );
       output("hiHostLimit").classList.toggle(
         "limiter",
-        !fullResidencySelected && hiHostLimit <= offloadedGpuLimit && hiHostLimit <= maxSeqs,
+        !fullResidencySelected && hiHostLimit <= offloadedGpuLimit,
       );
 
       output("sequenceValue").textContent = fmtTokens(sequence);
@@ -1549,16 +1540,6 @@
           + `is ${gpuMemoryBudgetGiB().toFixed(1)} GiB. Increase TP, enable EP, `
           + `or choose a larger GPU.`
         );
-      const cappedSides = [
-        baselineLimit === maxSeqs ? "non-HiSparse" : null,
-        hiLimit === maxSeqs ? "HiSparse" : null,
-      ].filter(Boolean);
-      output("capNote").hidden = cappedSides.length === 0;
-      output("capNote").textContent = cappedSides.length === 0 ? "" : (
-        `The ${cappedSides.join(" and ")} result${cappedSides.length > 1 ? "s are" : " is"} capped by max_num_seqs = `
-        + `${fmt(maxSeqs)} per DP replica (vLLM’s default on H100-class and newer GPUs), `
-        + `not by KV memory. Raise “Max sequences / DP” under Advanced to see the KV limit.`
-      );
       const newlyEnabled = modelFits && baselineLimit === 0 && hiLimit > 0;
       output("enablement").hidden = !newlyEnabled;
       output("enablementDetail").textContent = newlyEnabled
