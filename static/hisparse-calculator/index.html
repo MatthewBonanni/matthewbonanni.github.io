@@ -165,6 +165,7 @@
       font-size: 12px;
     }
     .fit-warning[hidden] { display: none; }
+    #capNote { margin-top: 10px; }
     .advanced { margin: 6px 0 10px; }
     .advanced summary { color: var(--accent); font-size: 12px; font-weight: 700; }
     .advanced .field:first-of-type { margin-top: 14px; }
@@ -354,6 +355,32 @@
     }
     .chart-tooltip[hidden] { display: none; }
 
+    .layer-panel { padding: 14px; }
+    .layer-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .layer-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .layer-legend span[hidden] { display: none; }
+    .layer-legend .layer-cell { width: 10px; height: 10px; }
+    .layer-map { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 5px 10px; margin-top: 10px; align-items: center; }
+    .layer-lane-label { color: var(--muted); font-size: 11px; line-height: 1.2; }
+    .layer-row { display: grid; gap: 1px; }
+    .layer-cell { display: block; height: 16px; border-radius: 2px; background: transparent; }
+    .layer-cell.host { background: var(--host); }
+    .layer-cell.gpu { background: var(--accent); }
+    .layer-cell.fixed { background: var(--fixed); }
+    .layer-cell.shared { box-shadow: inset 0 0 0 1px var(--muted); }
+    .layer-cell.static { background: repeating-linear-gradient(45deg, var(--host) 0 2px, transparent 2px 4px); }
+    .layer-cell.none { background: var(--track); opacity: .35; }
+    .layer-row .layer-cell:not(.none) { cursor: pointer; }
+    .layer-row .layer-cell.active { outline: 2px solid var(--text); outline-offset: 1px; }
+    .layer-axis { position: relative; height: 14px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+    .layer-axis span { position: absolute; transform: translateX(-50%); }
+    .layer-detail { min-height: 2.9em; margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .layer-detail strong { color: var(--text); }
+    @media (max-width: 560px) {
+      .layer-map { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .layer-lane-label { margin-top: 5px; }
+      .layer-axis-spacer { display: none; }
+    }
     .details { padding: 14px; }
     .details > details:first-child { margin-top: 0; }
     .details table { margin-top: 8px; font-size: 13px; }
@@ -375,7 +402,8 @@
       .results { display: contents; }
       .summary { order: 1; }
       .controls { order: 2; }
-      .details { order: 3; }
+      .layer-panel { order: 3; }
+      .details { order: 4; }
     }
 
     @media (max-width: 480px) {
@@ -553,6 +581,7 @@
             <strong>HiSparse enables this sequence length.</strong>
             <span id="enablementDetail"></span>
           </div>
+          <p class="fit-warning" id="capNote" hidden></p>
           <div class="summary-meta">
             <span>Topology: <strong id="gpuTopology">–</strong></span>
             <span>Model weights / GPU: <strong id="modelWeight">–</strong></span>
@@ -645,6 +674,23 @@
             </svg>
             <div class="chart-tooltip" id="chartTooltip" role="tooltip" hidden></div>
           </div>
+        </div>
+
+        <div class="panel layer-panel">
+          <div class="chart-heading">
+            <h2>KV placement by layer</h2>
+            <p class="chart-summary" id="layerSummary">–</p>
+          </div>
+          <div class="layer-legend">
+            <span><i class="layer-cell host"></i>Offloaded to host</span>
+            <span><i class="layer-cell gpu"></i>Full history on GPU</span>
+            <span><i class="layer-cell fixed"></i>Fixed-size state on GPU</span>
+            <span><i class="layer-cell shared"></i>Shared from another layer</span>
+            <span data-static-key><i class="layer-cell static"></i>Static table in host memory</span>
+          </div>
+          <p class="chart-assumption">With HiSparse. Without it, every cache stays on the GPU. Offloaded layers keep a top-K hot buffer on the GPU.</p>
+          <div class="layer-map" id="layerMap" role="group" aria-label="KV placement by layer"></div>
+          <p class="layer-detail" id="layerDetail">Hover or tap a layer for details.</p>
         </div>
 
         <div class="panel details">
@@ -796,6 +842,167 @@
     };
     const currentModel = () => models[fields.model.value];
 
+    const cell = (state, note) => ({ state, note });
+    const lane = (label, numLayers, cellFor) => ({
+      label,
+      cells: Array.from({ length: numLayers }, (_, layer) => cellFor(layer)),
+    });
+    const lastAtOrBelow = (ids, layer) => Math.max(...ids.filter(id => id <= layer));
+
+    const glm53IndexerLeader = layer => (layer < 3 ? layer : layer - (layer - 2) % 4);
+    const dsv4Lanes = (compressRatios, topk) => {
+      const n = compressRatios.length;
+      const c4 = layer => compressRatios[layer] === 4;
+      const c128 = layer => compressRatios[layer] === 128;
+      return [
+        lane("SWA KV (last 128 tokens)", n, () => cell("fixed", "Sliding-window KV for the last 128 tokens. Fixed size, stays on GPU.")),
+        lane("C4 sparse latent", n, layer => c4(layer)
+          ? cell("host", `4× compressed latent KV. Full history offloaded to host; the top-${fmt(topk)} rows the indexer selects are staged in a GPU hot buffer.`)
+          : null),
+        lane("C4 indexer K", n, layer => c4(layer)
+          ? cell("gpu", "Indexer keys for the C4 latent. Full history stays on GPU so every step can score all tokens.")
+          : null),
+        lane("C128 latent", n, layer => c128(layer)
+          ? cell("gpu", "128× compressed latent KV, read densely. Small, so the full history stays on GPU.")
+          : null),
+        lane("Compressor state", n, layer => (c4(layer) || c128(layer))
+          ? cell("fixed", "Partial-block buffer for the compressor. Fixed size, stays on GPU.")
+          : null),
+      ];
+    };
+
+    const layerMaps = {
+      glm53: () => {
+        const n = 78;
+        return [
+          lane("Sparse MLA latent", n, () => cell("host", "Latent KV. Full history offloaded to host; the top-2,048 rows the indexer selects are staged in a GPU hot buffer.")),
+          lane("Indexer K", n, layer => glm53IndexerLeader(layer) === layer
+            ? cell("gpu", "Indexer keys. Full history stays on GPU so every step can score all tokens.")
+            : cell("shared", `No indexer cache. Reuses layer ${glm53IndexerLeader(layer)}’s top-K selection.`)),
+        ];
+      },
+      glm53flash: () => {
+        const n = 45;
+        const sparse = layer => layer % 4 === 3;
+        return [
+          lane("KDA linear-attention state", n, layer => sparse(layer)
+            ? null
+            : cell("fixed", "Kimi Delta Attention recurrent and conv state. Fixed size regardless of context, stays on GPU.")),
+          lane("Sparse MLA latent", n, layer => sparse(layer)
+            ? cell("host", "Latent KV. Full history offloaded to host; the top-2,048 rows the indexer selects are staged in a GPU hot buffer.")
+            : null),
+          lane("Indexer K (4× pooled)", n, layer => sparse(layer)
+            ? cell("gpu", "Indexer keys pooled over 4 tokens. Full history stays on GPU.")
+            : null),
+          lane("Pooling tail ring", n, layer => sparse(layer)
+            ? cell("fixed", "Keys for the not-yet-pooled tail. Fixed size, stays on GPU.")
+            : null),
+        ];
+      },
+      dsv4pro: () => dsv4Lanes([128, 128, ...Array.from({ length: 59 }, (_, i) => (i % 2 ? 128 : 4))], 1024),
+      dsv4flash: () => dsv4Lanes([0, 0, ...Array.from({ length: 41 }, (_, i) => (i % 2 ? 128 : 4))], 512),
+      dsv41flash: () => {
+        const n = 40;
+        const ratio = layer => (layer < 2 ? 0 : layer < 20 ? 2 : 1);
+        const kvSources = [2, 8, 14, 20];
+        const indexSources = [2, 8, 14, 20, 24, 28, 32, 36];
+        return [
+          lane("SWA KV (last 128 tokens)", n, () => cell("fixed", "Sliding-window KV for the last 128 tokens. Fixed size, stays on GPU.")),
+          lane("Compressed KV (C2 / C1)", n, layer => {
+            if (!ratio(layer)) return null;
+            if (kvSources.includes(layer)) {
+              return cell("host", `C${ratio(layer)} compressed KV, shared by the layers above it. Full history offloaded to host; the top-512 rows are staged in a GPU hot buffer.`);
+            }
+            return cell("shared", `No KV cache of its own. Reads layer ${lastAtOrBelow(kvSources, layer)}’s compressed KV.`);
+          }),
+          lane("Indexer K", n, layer => {
+            if (!ratio(layer)) return null;
+            if (kvSources.includes(layer)) {
+              return cell("gpu", "Indexer keys. Full history stays on GPU so every step can score all tokens.");
+            }
+            if (indexSources.includes(layer)) {
+              return cell("shared", "Computes its own top-K, scoring against layer 20’s indexer keys.");
+            }
+            return cell("shared", `No indexer. Reuses layer ${lastAtOrBelow(indexSources, layer)}’s top-K selection.`);
+          }),
+          lane("Compressor state", n, layer => (ratio(layer) === 2 && kvSources.includes(layer)
+            ? cell("fixed", "Partial-block buffer for the C2 compressor. Fixed size, stays on GPU.")
+            : null)),
+          lane("Engram table", n, layer => ([1, 14].includes(layer)
+            ? cell("static", "Static n-gram embedding table, kept in host memory by default. Model weights, not per-request KV.")
+            : null)),
+        ];
+      },
+    };
+
+    let activeLayerCell = null;
+
+    function describeLayerCell(target) {
+      if (activeLayerCell) activeLayerCell.classList.remove("active");
+      activeLayerCell = target;
+      target.classList.add("active");
+      const detail = output("layerDetail");
+      detail.replaceChildren();
+      const heading = document.createElement("strong");
+      heading.textContent = `Layer ${target.dataset.layer} · ${target.dataset.lane}. `;
+      detail.append(heading, target.dataset.note);
+    }
+
+    function renderLayerMap() {
+      const lanes = layerMaps[fields.model.value]();
+      const numLayers = lanes[0].cells.length;
+      const map = output("layerMap");
+      map.replaceChildren();
+      activeLayerCell = null;
+      output("layerDetail").textContent = "Hover or tap a layer for details.";
+      for (const { label, cells } of lanes) {
+        const name = document.createElement("div");
+        name.className = "layer-lane-label";
+        name.textContent = label;
+        const row = document.createElement("div");
+        row.className = "layer-row";
+        row.style.gridTemplateColumns = `repeat(${numLayers}, minmax(0, 1fr))`;
+        cells.forEach((entry, layer) => {
+          const box = document.createElement("span");
+          box.className = `layer-cell ${entry ? entry.state : "none"}`;
+          if (entry) {
+            box.dataset.layer = layer;
+            box.dataset.lane = label;
+            box.dataset.note = entry.note;
+            box.title = `Layer ${layer}: ${entry.note}`;
+          }
+          row.append(box);
+        });
+        map.append(name, row);
+      }
+      const spacer = document.createElement("div");
+      spacer.className = "layer-axis-spacer";
+      const axis = document.createElement("div");
+      axis.className = "layer-axis";
+      const tickStep = numLayers > 50 ? 10 : 5;
+      for (let layer = 0; layer < numLayers; layer += tickStep) {
+        const tick = document.createElement("span");
+        tick.style.left = `${100 * (layer + .5) / numLayers}%`;
+        tick.textContent = layer;
+        axis.append(tick);
+      }
+      map.append(spacer, axis);
+
+      const states = new Set(lanes.flatMap(({ cells }) => cells.filter(Boolean).map(entry => entry.state)));
+      document.querySelector("[data-static-key]").hidden = !states.has("static");
+      const offloaded = lanes.filter(({ cells }) => cells.some(entry => entry?.state === "host"));
+      output("layerSummary").textContent = (
+        `${numLayers} layers · offloads ${offloaded.map(({ label }) => label).join(", ")}`
+      );
+    }
+
+    output("layerMap").addEventListener("pointerover", event => {
+      if (event.target.dataset?.note) describeLayerCell(event.target);
+    });
+    output("layerMap").addEventListener("click", event => {
+      if (event.target.dataset?.note) describeLayerCell(event.target);
+    });
+
     function layoutFor(model, dtype) {
       return model.layouts[`${currentGpu.arch}-${dtype}`] || model.layouts[dtype];
     }
@@ -878,6 +1085,7 @@
     function applyModel() {
       const model = currentModel();
       output("modelNote").textContent = model.note;
+      renderLayerMap();
       fields.deviceBuffer.min = model.topk;
       fields.deviceBuffer.max = 4 * model.topk;
       fields.deviceBuffer.step = model.topk / 32;
@@ -1341,6 +1549,16 @@
           + `is ${gpuMemoryBudgetGiB().toFixed(1)} GiB. Increase TP, enable EP, `
           + `or choose a larger GPU.`
         );
+      const cappedSides = [
+        baselineLimit === maxSeqs ? "non-HiSparse" : null,
+        hiLimit === maxSeqs ? "HiSparse" : null,
+      ].filter(Boolean);
+      output("capNote").hidden = cappedSides.length === 0;
+      output("capNote").textContent = cappedSides.length === 0 ? "" : (
+        `The ${cappedSides.join(" and ")} result${cappedSides.length > 1 ? "s are" : " is"} capped by max_num_seqs = `
+        + `${fmt(maxSeqs)} per DP replica (vLLM’s default on H100-class and newer GPUs), `
+        + `not by KV memory. Raise “Max sequences / DP” under Advanced to see the KV limit.`
+      );
       const newlyEnabled = modelFits && baselineLimit === 0 && hiLimit > 0;
       output("enablement").hidden = !newlyEnabled;
       output("enablementDetail").textContent = newlyEnabled
