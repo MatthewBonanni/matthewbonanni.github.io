@@ -132,6 +132,7 @@
       color: var(--muted);
     }
     .toggle input { width: 17px; height: 17px; accent-color: var(--hi); }
+    .toggle:has(input:disabled) { opacity: .55; cursor: not-allowed; }
     .inline-hint { margin-top: 5px; color: var(--muted); font-size: 11px; }
     .minimum-host {
       margin: 3px 0 10px;
@@ -540,7 +541,7 @@
             <input id="shareHost" type="checkbox" checked>
             Share the host cache across TP ranks
           </label>
-          <p class="inline-hint">Sharing changes physical CPU RAM usage, not logical request capacity.</p>
+          <p class="inline-hint" id="shareHostHint"></p>
           <p class="fit-warning" id="ramWarning" hidden></p>
         </fieldset>
 
@@ -867,6 +868,7 @@
         tp: 8,
         maxSequence: 262144,
         hostCopiesPerDp: 4,
+        hostCopiesReason: "Unavailable for Qwen3.8-Flash-Next: it uses GQA with 2 KV heads, so at TP8 each rank holds one head and keeps its own host cache (4 copies of each head). Only MLA/DSA models, whose KV is identical on every TP rank, can share one host cache.",
         layouts: {
           bf16: layout([5849088, 448, 5, 12], [458752, 448, 38, 987], [[12, 448]], [11010048, 448]),
           fp8: layout([5750784, 832, 5, 12], [638976, 832, 38, 567], [[12, 832]], [10223616, 832]),
@@ -1166,6 +1168,10 @@
       if (model.hostCopiesPerDp) fields.shareHost.checked = false;
       else if (fields.shareHost.disabled) fields.shareHost.checked = true;
       fields.shareHost.disabled = Boolean(model.hostCopiesPerDp);
+      const shareHostHint = model.hostCopiesReason
+        ?? "Sharing changes physical CPU RAM usage, not logical request capacity.";
+      output("shareHostHint").textContent = shareHostHint;
+      fields.shareHost.closest("label").title = model.hostCopiesReason ?? "";
       fields.deviceBuffer.value = 2 * model.topk;
       fields.tp.disabled = Boolean(model.tp);
       if (model.tp) fields.tp.value = model.tp;
