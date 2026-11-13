@@ -449,6 +449,8 @@
             <option value="dsv4pro">DeepSeek-V4-Pro</option>
             <option value="dsv4flash">DeepSeek-V4-Flash</option>
             <option value="dsv41flash">DeepSeek-V4.1-Flash</option>
+            <option value="kimik31pro">Kimi-K3.1-Pro</option>
+            <option value="qwen38flash">Qwen3.8-Flash-Next</option>
           </select>
           <p class="inline-hint" id="modelNote"></p>
         </fieldset>
@@ -836,6 +838,33 @@
           "sm100-fp8": layout([219648, 128, 21, 4096], [67584, 128, 203, 41976], [[3, 64], [1, 128]], [168960, 128]),
         },
       },
+      kimik31pro: {
+        name: "Kimi-K3.1-Pro",
+        note: "Estimate from the layout in vllm-project/vllm#67262 (open). Weights do not fit on 8 GPUs, so this defaults to DP2 × TP8 with EP. KDA state shards by TP, so the layout is computed for TP8 only.",
+        weights: { sharedGiB: 106.880, routedExpertGiB: 1347.117 },
+        topk: 2048,
+        tp: 8,
+        dp: 2,
+        layouts: {
+          "sm100-fp8": layout([19666944, 1152, 9, 0], [3649536, 1152, 54, 145], [[5, 1152]], [15925248, 1152]),
+          "sm100-bf16": layout([20275200, 640, 9, 0], [2433024, 640, 105, 600], [[12, 640]], [17694720, 640]),
+          "sm90-fp8": layout([19396608, 1024, 9, 0], [4156416, 1024, 69, 180], [[6, 1024]], [16121856, 1024]),
+          "sm90-bf16": layout([19742976, 640, 9, 0], [2027520, 640, 105, 600], [[12, 640]], [17694720, 640]),
+        },
+      },
+      qwen38flash: {
+        name: "Qwen3.8-Flash-Next",
+        note: "Estimate from the layout in vllm-project/vllm#59209 (open), BF16 checkpoint. GDN state shards by TP, so the layout is computed for TP8 only. Its 2 KV heads replicate past TP2 and each rank keeps a private host pool, so physical host memory is 4× the logical pool. Context is limited to 256k.",
+        weights: { sharedGiB: 10.052, routedExpertGiB: 225.0 },
+        topk: 2051,
+        tp: 8,
+        maxSequence: 262144,
+        hostCopiesPerDp: 4,
+        layouts: {
+          bf16: layout([5849088, 448, 5, 12], [458752, 448, 38, 987], [[12, 448]], [11010048, 448]),
+          fp8: layout([5750784, 832, 5, 12], [638976, 832, 38, 567], [[12, 832]], [10223616, 832]),
+        },
+      },
     };
     const currentModel = () => models[fields.model.value];
 
@@ -893,6 +922,45 @@
             : null),
           lane("Pooling tail ring", n, layer => sparse(layer)
             ? cell("fixed", "Keys for the not-yet-pooled tail. Fixed size, stays on GPU.")
+            : null),
+        ];
+      },
+      qwen38flash: () => {
+        const n = 48;
+        const qsa = layer => layer % 4 === 3;
+        return [
+          lane("Gated DeltaNet state", n, layer => qsa(layer)
+            ? null
+            : cell("fixed", "Gated DeltaNet recurrent and conv state. Fixed size regardless of context, stays on GPU.")),
+          lane("Full-attention K/V", n, layer => qsa(layer)
+            ? cell("host", "Main K/V (2 heads). Full history offloaded to host; the top-2,051 rows the indexer selects are staged in a GPU hot buffer.")
+            : null),
+          lane("Indexer K (4× compressed)", n, layer => qsa(layer)
+            ? cell("gpu", "Compressed indexer keys, one row per 4 tokens. Full history stays on GPU.")
+            : null),
+          lane("Raw-key ring", n, layer => qsa(layer)
+            ? cell("fixed", "Keys for the last few not-yet-compressed tokens. Fixed size, stays on GPU.")
+            : null),
+          lane("PLE short-conv state", n, layer => (layer === 1
+            ? cell("fixed", "Per-layer embedding short-conv state. Fixed size, stays on GPU.")
+            : null)),
+          lane("PLE n-gram table", n, layer => (layer === 1
+            ? cell("static", "Per-layer-embedding n-gram table, kept in pinned host memory by default. Model weights, not per-request KV.")
+            : null)),
+        ];
+      },
+      kimik31pro: () => {
+        const n = 93;
+        const dsa = layer => layer % 4 === 3 || layer === n - 1;
+        return [
+          lane("KDA linear-attention state", n, layer => dsa(layer)
+            ? null
+            : cell("fixed", "Kimi Delta Attention recurrent and conv state. Fixed size regardless of context, stays on GPU.")),
+          lane("Sparse MLA latent", n, layer => dsa(layer)
+            ? cell("host", "Latent KV. Full history offloaded to host; the top-2,048 rows the indexer selects are staged in a GPU hot buffer.")
+            : null),
+          lane("Indexer K", n, layer => dsa(layer)
+            ? cell("gpu", "Indexer keys. Full history stays on GPU so every step can score all tokens.")
             : null),
         ];
       },
@@ -1085,10 +1153,17 @@
       renderLayerMap();
       fields.deviceBuffer.min = model.topk;
       fields.deviceBuffer.max = 4 * model.topk;
-      fields.deviceBuffer.step = model.topk / 32;
+      fields.deviceBuffer.step = model.topk % 32 === 0 ? model.topk / 32 : 1;
+      fields.sequence.max = model.maxSequence ?? 1048576;
+      fields.sequence.value = Math.min(Number(fields.sequence.value), Number(fields.sequence.max));
+      if (model.hostCopiesPerDp) fields.shareHost.checked = false;
+      else if (fields.shareHost.disabled) fields.shareHost.checked = true;
+      fields.shareHost.disabled = Boolean(model.hostCopiesPerDp);
       fields.deviceBuffer.value = 2 * model.topk;
       fields.tp.disabled = Boolean(model.tp);
       if (model.tp) fields.tp.value = model.tp;
+      fields.dp.value = model.dp ?? 1;
+      if (model.dp) fields.expertParallel.checked = true;
       updateKvLayout();
       updateEstimatedKvHbm();
     }
@@ -1224,7 +1299,9 @@
           + `<text class="chart-axis" x="${margin.left - 7}" y="${y}" text-anchor="end" dominant-baseline="middle">${fmt(concurrency)}</text>`
         );
       }).join("");
-      const xTicks = [8192, 32768, 131072, 524288, 1048576].map(sequence => {
+      const xTicks = [8192, 32768, 131072, 262144, 1048576].filter(
+        sequence => sequence <= maxSequence,
+      ).map(sequence => {
         const x = xFor(sequence);
         return (
           `<line class="chart-grid" x1="${x}" x2="${x}" y1="${margin.top}" y2="${height - margin.bottom}"/>`
@@ -1339,7 +1416,8 @@
       const sequence = value("sequence", 1);
       const dp = value("dp", 1);
       const tp = value("tp", 1);
-      const hostPoolCopiesPerDp = fields.shareHost.checked ? 1 : tp;
+      const hostPoolCopiesPerDp = currentModel().hostCopiesPerDp
+        ?? (fields.shareHost.checked ? 1 : tp);
       const hostPoolCopies = dp * hostPoolCopiesPerDp;
       const unconstrained = capacityAtSequence(sequence);
       const minimumHostGiB = Math.ceil(unconstrained.nonLimitingHostBytes / 2 ** 30);

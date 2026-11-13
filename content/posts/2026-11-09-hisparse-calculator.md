@@ -2,7 +2,7 @@
 title: "HiSparse Concurrency Calculator"
 date: 2026-11-09
 tags: ["machine learning", "vllm", "visualization"]
-summary: "An interactive calculator for estimating how many concurrent long-context requests GLM and DeepSeek sparse-attention models can serve with and without Hybrid HiSparse in vLLM."
+summary: "An interactive calculator for estimating how many concurrent long-context requests GLM, DeepSeek, Kimi and Qwen sparse-attention models can serve with and without Hybrid HiSparse in vLLM."
 cover:
   image: /images/posts/hisparse-calculator/cover.png
   alt: "The HiSparse concurrency calculator"
@@ -17,7 +17,7 @@ Hybrid HiSparse is a feature I built in vLLM with Lucas Wilkinson and Fares Obei
 
 I wrote this calculator for that post. It estimates how many concurrent requests a model can serve with and without HiSparse. You choose the model, GPU, parallelism, sequence length and host memory. It also shows the smallest host pool that keeps CPU memory from limiting concurrency, and a breakdown of GPU and CPU memory use. The numbers are planning estimates, not guaranteed serving limits.
 
-Besides GLM-5.3, the calculator covers GLM-5.3-Flash, DeepSeek-V4-Pro, DeepSeek-V4-Flash and DeepSeek-V4.1-Flash. HiSparse support for these is still in open vLLM pull requests, so their numbers come from the KV layouts in those PRs.
+Besides GLM-5.3, the calculator covers GLM-5.3-Flash, DeepSeek-V4-Pro, DeepSeek-V4-Flash, DeepSeek-V4.1-Flash, Kimi-K3.1-Pro and Qwen3.8-Flash-Next. HiSparse support for these is still in open vLLM pull requests, so their numbers come from the KV layouts in those PRs.
 
 <iframe
   src="/hisparse-calculator/"
